@@ -1,0 +1,45 @@
+# Local development stack: MongoDB + API + Web.
+# Usage: docker compose up --build
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.adminCommand("ping")']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGODB_URI: mongodb://mongo:27017/easygenerator-auth
+      # Local-demo only. In real deployments inject a unique secret per
+      # environment (secret manager / CI secret), never commit it.
+      JWT_SECRET: ${JWT_SECRET:-local-demo-secret-change-me-0123456789abcdef}
+      CORS_ORIGINS: http://localhost:5173
+      COOKIE_SECURE: 'false'
+      SWAGGER_ENABLED: 'false'
+    ports:
+      - '3000:3000'
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+
+volumes:
+  mongo-data:
